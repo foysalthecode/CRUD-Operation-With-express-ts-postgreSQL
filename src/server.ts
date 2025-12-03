@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import { Pool } from "pg";
 import dotenv from "dotenv";
 import path from "path";
@@ -45,7 +45,13 @@ const initDB = async () => {
 
 initDB();
 
-app.get("/", (req: Request, res: Response) => {
+//logger middleware
+const logger = (req: Request, res: Response, next: NextFunction) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} \n`);
+  next();
+};
+
+app.get("/", logger, (req: Request, res: Response) => {
   res.send("Hello Next level developer!");
 });
 
@@ -98,7 +104,7 @@ app.get("/users/:id", async (req: Request, res: Response) => {
       req.params.id,
     ]);
     if (result.rows.length === 0) {
-      res.status(404).json({
+      ` res.status(404).json({
         success: false,
         messsage: "User not found",
       });
@@ -107,7 +113,7 @@ app.get("/users/:id", async (req: Request, res: Response) => {
         success: true,
         message: "User Fatched Successfully",
         data: result.rows[0],
-      });
+      });`;
     }
   } catch (err: any) {
     res.status(500).json({
@@ -216,6 +222,99 @@ app.get("/todos", async (req: Request, res: Response) => {
       details: err,
     });
   }
+});
+
+//* get single todo
+app.get("/todos/:id", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`SELECT * FROM todos WHERE id=$1`, [
+      req.params.id,
+    ]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        messsage: "Todo not found",
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Todo Fatched Successfully",
+        data: result.rows[0],
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: "todo not found",
+    });
+  }
+});
+
+//* put todo api
+app.put("/todos/:id", async (req: Request, res: Response) => {
+  const { title } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE todos SET title=$1 WHERE id=$2 RETURNING *`,
+      [title, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        messsage: "Todo not found",
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Todo Updated Successfully",
+        data: result.rows[0],
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+      details: err,
+    });
+  }
+});
+
+//* delete todo api
+
+app.delete("/todos/:id", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`DELETE FROM todos WHERE id=$1`, [
+      req.params.id,
+    ]);
+    if (result.rowCount === 0) {
+      res.status(404).json({
+        success: false,
+        messsage: "Todo not found",
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Todo Deleted Successfully",
+        data: null,
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+      details: err,
+    });
+  }
+});
+
+//not found route
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route Not Found",
+    path: req.path,
+  });
 });
 
 app.listen(port, () => {
